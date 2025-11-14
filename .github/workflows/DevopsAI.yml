@@ -27,20 +27,23 @@ jobs:
       - name: Get recent commits
         id: gitlog
         run: |
-          {
-            echo "COMMITS<<EOF"
-            git log --pretty=format:"%h %an %ae %s" -n 20
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
+          tmpfile=$(mktemp)
+          git log --pretty=format:"%h %an %ae %s" -n 20 > "$tmpfile"
+
+          echo "COMMITS<<EOF" >> $GITHUB_OUTPUT
+          cat "$tmpfile" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       # 4. Gather Diff
       - name: Get patch diff
         id: gitdiff
         run: |
-          {
-            echo "DIFF<<EOF"
-            git log -p -n 10
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
+          tmpfile=$(mktemp)
+          git log -p -n 10 > "$tmpfile"
+
+          echo "DIFF<<EOF" >> $GITHUB_OUTPUT
+          cat "$tmpfile" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       # 5. Analyze with LLM
       - name: AI Root Cause Analysis
