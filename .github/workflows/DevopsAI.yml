@@ -128,38 +128,38 @@ jobs:
             gh pr create --title "AI Auto Fix" --body "Fix applied automatically" --base master --head $branch
           fi
 
-      # 8. Send Teams Notification
-      - name: Send Teams Notification
-        run: |
-          message=$(cat ai.json | jq -r '.summary')
-          dev=$(cat ai.json | jq -r '.developer')
-          email=$(cat ai.json | jq -r '.email')
-          root=$(cat ai.json | jq -r '.root_cause')
-          sol=$(cat ai.json | jq -r '.solution')
-
-          json=$(jq -n \
-             --arg t "🚨 Production Pipeline Failed" \
-             --arg d "$dev" \
-             --arg e "$email" \
-             --arg r "$root" \
-             --arg s "$sol" \
-             '{
-               "@type": "MessageCard",
-               "@context": "http://schema.org/extensions",
-               "summary": "Pipeline Failure",
-               "themeColor": "ff0000",
-               "title": $t,
-               "sections": [
-                   { "text": "**Developer:** \($d)\n**Email:** \($e)\n\n**Root Cause:** \($r)\n\n**Solution:** \($s)" }
-               ]
-             }'
-          )
-
-#         TEAMS Web Hook
-#          curl -H "Content-Type: application/json" \
-#               -d "$json" \
-#               ${{ secrets.TEAMS_WEBHOOK }}
-
-          echo "------------ TEAMS MESSAGE SIMULATION ------------"
-          echo "$json" | jq .
-          echo "------------ END OF SIMULATION -------------------"
+#      # 8. Send Teams Notification
+#      - name: Send Teams Notification
+#        run: |
+#          message=$(cat ai.json | jq -r '.summary')
+#          dev=$(cat ai.json | jq -r '.developer')
+#          email=$(cat ai.json | jq -r '.email')
+#          root=$(cat ai.json | jq -r '.root_cause')
+#          sol=$(cat ai.json | jq -r '.solution')
+#
+#          json=$(jq -n \
+#             --arg t "🚨 Production Pipeline Failed" \
+#             --arg d "$dev" \
+#             --arg e "$email" \
+#             --arg r "$root" \
+#             --arg s "$sol" \
+#             '{
+#               "@type": "MessageCard",
+#               "@context": "http://schema.org/extensions",
+#               "summary": "Pipeline Failure",
+#               "themeColor": "ff0000",
+#               "title": $t,
+#               "sections": [
+#                   { "text": "**Developer:** \($d)\n**Email:** \($e)\n\n**Root Cause:** \($r)\n\n**Solution:** \($s)" }
+#               ]
+#             }'
+#          )
+#
+##         TEAMS Web Hook
+##          curl -H "Content-Type: application/json" \
+##               -d "$json" \
+##               ${{ secrets.TEAMS_WEBHOOK }}
+#
+#          echo "------------ TEAMS MESSAGE SIMULATION ------------"
+#          echo "$json" | jq .
+#          echo "------------ END OF SIMULATION -------------------"
