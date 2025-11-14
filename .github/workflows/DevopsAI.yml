@@ -1,0 +1,18 @@
+name: AI Postmortem
+
+on:
+  workflow_run:
+    workflows: ["Production Deploy"]
+    types: [completed]
+
+jobs:
+  analyze:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Show Trigger Details
+        run: |
+          echo "Production run failed!"
+          echo "Run ID: ${{ github.event.workflow_run.id }}"
+          echo "Repo: ${{ github.event.workflow_run.repository.full_name }}"
