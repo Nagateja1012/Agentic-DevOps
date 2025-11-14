@@ -45,7 +45,7 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          python3 << 'EOF'
+          python3 << EOF
           import json, os, openai
 
           openai.api_key = os.getenv("OPENAI_API_KEY")
