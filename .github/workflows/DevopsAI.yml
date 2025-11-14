@@ -110,23 +110,23 @@ jobs:
           echo '${{ steps.ai.outputs.RESULT }}' > ai.json
           cat ai.json
 
-      # 7. If patch exists, create PR
-      - name: Create PR With Patch
-        if: contains(steps.ai.outputs.RESULT, 'patch')
-        run: |
-          patch=$(jq -r '.patch' ai.json)
-          if [ "$patch" != "null" ] && [ ! -z "$patch" ]; then
-            echo "$patch" > fix.patch
-            git apply fix.patch
-            branch="auto-fix-$(date +%s)"
-            git checkout -b $branch
-            git config user.name "Devops AI"
-            git config user.email "bot@example"
-            git add .
-            git commit -m "Auto-fix: Pipeline failure resolution"
-            git push origin $branch
-            gh pr create --title "AI Auto Fix" --body "Fix applied automatically" --base master --head $branch
-          fi
+#      # 7. If patch exists, create PR
+#      - name: Create PR With Patch
+#        if: contains(steps.ai.outputs.RESULT, 'patch')
+#        run: |
+#          patch=$(jq -r '.patch' ai.json)
+#          if [ "$patch" != "null" ] && [ ! -z "$patch" ]; then
+#            echo "$patch" > fix.patch
+#            git apply fix.patch
+#            branch="auto-fix-$(date +%s)"
+#            git checkout -b $branch
+#            git config user.name "Devops AI"
+#            git config user.email "bot@example"
+#            git add .
+#            git commit -m "Auto-fix: Pipeline failure resolution"
+#            git push origin $branch
+#            gh pr create --title "AI Auto Fix" --body "Fix applied automatically" --base master --head $branch
+#          fi
 
 #      # 8. Send Teams Notification
 #      - name: Send Teams Notification
