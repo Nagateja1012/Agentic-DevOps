@@ -36,26 +36,30 @@ jobs:
         run: |
           diff=$(git log -p -n 10 | base64 -w0)
           echo "DIFF=$diff" >> $GITHUB_OUTPUT
-
-
       # 5. Analyze with LLM
       - name: AI Root Cause Analysis
         id: ai
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          python3 << EOF
-          import json, os, openai
+          python3 << 'EOF'
+          import json, os, base64
+          from openai import OpenAI
 
-          openai.api_key = os.getenv("OPENAI_API_KEY")
+          client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+          # Load logs
           logs = ""
           for root, _, files in os.walk("logs"):
               for f in files:
                   logs += open(os.path.join(root, f)).read() + "\n"
 
-          commits = """${{ steps.gitlog.outputs.COMMITS }}"""
-          diffs   = """${{ steps.gitdiff.outputs.DIFF }}"""
+          # Base64 decode commits & diffs
+          commits_b64 = """${{ steps.gitlog.outputs.COMMITS }}"""
+          diffs_b64   = """${{ steps.gitdiff.outputs.DIFF }}"""
+
+          commits = base64.b64decode(commits_b64).decode("utf-8", errors="ignore")
+          diffs   = base64.b64decode(diffs_b64).decode("utf-8", errors="ignore")
 
           prompt = f"""
           You are an expert CI/CD failure analyst.
@@ -72,33 +76,37 @@ jobs:
 
           Tasks:
           1. Identify the root cause of pipeline failure
-          2. Identify exact file & line number
-          3. Propose a fix
+          2. Identify file & line number
+          3. Propose fix
           4. Identify which commit & developer caused it
-          5. Provide email address of responsible developer
-          6. Provide a ready-to-apply git patch if possible
-          7. Provide a one-line summary for Teams message
+          5. Provide developer email
+          6. Provide git patch if possible
+          7. Provide one-line Teams summary
 
           Respond ONLY in JSON with:
-          {
+          {{
             "developer": "",
             "email": "",
             "root_cause": "",
             "solution": "",
             "summary": "",
             "patch": ""
-          }
+          }}
           """
 
-          response = openai.chat.completions.create(
+          response = client.chat.completions.create(
               model="gpt-5.1",
               messages=[{"role": "user", "content": prompt}]
           )
 
-          result = response.choices[0].message.content
-          print("RESULT<<EOF")
+          result = response.choices[0].message.content.strip()
+
+          # Print for next step
           print(result)
-          print("EOF")
+          # Write to output so `steps.ai.outputs.RESULT` works
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"RESULT<<JSONEOF\n{result}\nJSONEOF\n")
+
           EOF
 
       # 6. Save AI output
