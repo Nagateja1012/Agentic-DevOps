@@ -2,7 +2,7 @@ name: Devops-AI
 
 on:
   workflow_run:
-    workflows: ["production"]
+    workflows: ["Production Deploy"]
     types:
       - completed
 
