@@ -1,4 +1,5 @@
-name: Postmortem-AI
+name: Devops-AI
+run-name: Devops-AI-${{ github.event.workflow_run.id }}
 
 on:
   workflow_run:
