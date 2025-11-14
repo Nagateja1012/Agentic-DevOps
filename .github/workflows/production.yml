@@ -2,7 +2,7 @@ name: Production Deploy
 
 on:
   push:
-    branches: ["main"]
+    branches: ["Test"]
 
 jobs:
   deploy:
@@ -12,7 +12,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build Step (FAIL ON PURPOSE)
-        run: |
-          echo "Simulating failure..."
-          exit 1   # <-- guaranteed failure
+      - name: Run App
+        env:
+          API_KEY: 'key'
+        run: python app.py
