@@ -1,18 +1,164 @@
-name: AI Postmortem
+name: Postmortem-AI
 
 on:
   workflow_run:
-    workflows: ["Production Deploy"]
-    types: [completed]
+    workflows: ["production"]
+    types:
+      - completed
 
 jobs:
-  analyze:
+  ai-postmortem:
     if: ${{ github.event.workflow_run.conclusion == 'failure' }}
     runs-on: ubuntu-latest
 
     steps:
-      - name: Show Trigger Details
+      # 1. Clone repo
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      # 2. Download Logs from failed run
+      - name: Download workflow logs
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ github.event.workflow_run.id }}
+          path: logs/
+
+      # 3. Get commits since last successful deployment
+      - name: Get recent commits
+        id: gitlog
         run: |
-          echo "Production run failed!"
-          echo "Run ID: ${{ github.event.workflow_run.id }}"
-          echo "Repo: ${{ github.event.workflow_run.repository.full_name }}"
+          echo "COMMITS<<EOF" >> $GITHUB_OUTPUT
+          git log --pretty=format:"%h %an %ae %s" -n 20 >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      # 4. Gather Diff
+      - name: Get patch diff
+        id: gitdiff
+        run: |
+          echo "DIFF<<EOF" >> $GITHUB_OUTPUT
+          git log -p -n 10 >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      # 5. Analyze with LLM
+      - name: AI Root Cause Analysis
+        id: ai
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python3 << 'EOF'
+          import json, os, openai
+
+          openai.api_key = os.getenv("OPENAI_API_KEY")
+
+          logs = ""
+          for root, _, files in os.walk("logs"):
+              for f in files:
+                  logs += open(os.path.join(root, f)).read() + "\n"
+
+          commits = """${{ steps.gitlog.outputs.COMMITS }}"""
+          diffs   = """${{ steps.gitdiff.outputs.DIFF }}"""
+
+          prompt = f"""
+          You are an expert CI/CD failure analyst.
+
+          Given:
+          --- LOGS ---
+          {logs}
+
+          --- RECENT COMMITS ---
+          {commits}
+
+          --- CODE DIFF ---
+          {diffs}
+
+          Tasks:
+          1. Identify the root cause of pipeline failure
+          2. Identify exact file & line number
+          3. Propose a fix
+          4. Identify which commit & developer caused it
+          5. Provide email address of responsible developer
+          6. Provide a ready-to-apply git patch if possible
+          7. Provide a one-line summary for Teams message
+
+          Respond ONLY in JSON with:
+          {
+            "developer": "",
+            "email": "",
+            "root_cause": "",
+            "solution": "",
+            "summary": "",
+            "patch": ""
+          }
+          """
+
+          response = openai.chat.completions.create(
+              model="gpt-5.1",
+              messages=[{"role": "user", "content": prompt}]
+          )
+
+          result = response.choices[0].message.content
+          print("RESULT<<EOF")
+          print(result)
+          print("EOF")
+          EOF
+
+      # 6. Save AI output
+      - name: Parse AI JSON
+        id: parse
+        run: |
+          echo '${{ steps.ai.outputs.RESULT }}' > ai.json
+          cat ai.json
+
+      # 7. If patch exists, create PR
+      - name: Create PR With Patch
+        if: contains(steps.ai.outputs.RESULT, 'patch')
+        run: |
+          patch=$(jq -r '.patch' ai.json)
+          if [ "$patch" != "null" ] && [ ! -z "$patch" ]; then
+            echo "$patch" > fix.patch
+            git apply fix.patch
+            branch="auto-fix-$(date +%s)"
+            git checkout -b $branch
+            git config user.name "Devops AI"
+            git config user.email "bot@example"
+            git add .
+            git commit -m "Auto-fix: Pipeline failure resolution"
+            git push origin $branch
+            gh pr create --title "AI Auto Fix" --body "Fix applied automatically" --base master --head $branch
+          fi
+
+      # 8. Send Teams Notification
+      - name: Send Teams Notification
+        run: |
+          message=$(cat ai.json | jq -r '.summary')
+          dev=$(cat ai.json | jq -r '.developer')
+          email=$(cat ai.json | jq -r '.email')
+          root=$(cat ai.json | jq -r '.root_cause')
+          sol=$(cat ai.json | jq -r '.solution')
+
+          json=$(jq -n \
+             --arg t "🚨 Production Pipeline Failed" \
+             --arg d "$dev" \
+             --arg e "$email" \
+             --arg r "$root" \
+             --arg s "$sol" \
+             '{
+               "@type": "MessageCard",
+               "@context": "http://schema.org/extensions",
+               "summary": "Pipeline Failure",
+               "themeColor": "ff0000",
+               "title": $t,
+               "sections": [
+                   { "text": "**Developer:** \($d)\n**Email:** \($e)\n\n**Root Cause:** \($r)\n\n**Solution:** \($s)" }
+               ]
+             }'
+          )
+
+#         TEAMS Web Hook
+#          curl -H "Content-Type: application/json" \
+#               -d "$json" \
+#               ${{ secrets.TEAMS_WEBHOOK }}
+
+          echo "------------ TEAMS MESSAGE SIMULATION ------------"
+          echo "$json" | jq .
+          echo "------------ END OF SIMULATION -------------------"
